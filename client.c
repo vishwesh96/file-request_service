@@ -35,7 +35,7 @@ void *client(void* s){
     struct hostent *server;
     int r=0;
     if(!strcmp(t->mode,"fixed")){
-        r=rand()%2;
+        r=rand()%10000;
     }
     /* create socket, get sockfd handle */
     struct timeval current_time;
@@ -43,7 +43,7 @@ void *client(void* s){
         gettimeofday(&current_time,NULL);
         //check time duration
         if(current_time.tv_sec > start_time.tv_sec + t->duration){
-            printf("Time up, terminating thread %d\n",thread_id);
+            // printf("Time up, terminating thread %d\n",thread_id);
             t->thread_response_times[thread_id]=response_time;
             pthread_exit();
         }
@@ -75,11 +75,11 @@ void *client(void* s){
             close(sockfd);
             continue;               //ignoring think_time
         }
-        printf("Connected to server in thread %d\n",thread_id);
+        // printf("Connected to server in thread %d\n",thread_id);
 
         /* send user message to server */
         if(!strcmp(t->mode,"random")){
-            r=rand()%2;
+            r=rand()%10000;
         }
 
         char buffer[256];
@@ -89,7 +89,7 @@ void *client(void* s){
         strcat(buffer,str);
         strcat(buffer,".txt");
 
-        printf("Writing : %s to socket in thread %d\n",buffer,thread_id);
+        // printf("Writing : %s to socket in thread %d\n",buffer,thread_id);
 
         n = write(sockfd,buffer,strlen(buffer));
         if (n < 0) {
@@ -101,7 +101,7 @@ void *client(void* s){
         gettimeofday(&t1,NULL);
         char read_buffer[1024];
         /* read reply from server */
-        printf("Starting to read file in thread : %d\n",thread_id);
+        // printf("Starting to read file in thread : %d\n",thread_id);
         while(1){
             n = read(sockfd,read_buffer,1023);
             if (n < 0) {
@@ -109,16 +109,16 @@ void *client(void* s){
                  break;
             }
             if(n==0){
-                printf("File read completely in thread : %d\n",thread_id);
+                // printf("File read completely in thread : %d\n",thread_id);
                 gettimeofday(&t2,NULL); 
                 response_time+=((t2.tv_sec-t1.tv_sec)*1000.0 + (t2.tv_usec-t1.tv_usec)/1000.0);
                 t->thread_num_requests[thread_id]++;
                 break;
             }
-            //printf("%s\n",read_buffer);   
+            // printf("%s\n",read_buffer);   
         }
         close(sockfd);
-        printf("Waiting for think_time in thread : %d\n",thread_id);
+        // printf("Waiting for think_time in thread : %d\n",thread_id);
         sleep(t->think_time);
     }
 
@@ -155,16 +155,15 @@ int main(int argc, char *argv[])
         t.thread_id=i;
         gettimeofday(&t.start_time,NULL);                       //each thread runs for duration
         if(pthread_create(&client_thread[i],NULL,client,&t)){
-            printf("ERROR in creating thread %d \n",i);
+            // printf("ERROR in creating thread %d \n",i);
         }
-        printf("Successfully created thread %d \n",i);
+        // printf("Successfully created thread %d \n",i);
     }
-
     for(i=0;i<num_threads;i++){
-        if(pthread_join(client_thread[i])){
+        if(pthread_join(client_thread[i],NULL)){
             printf("ERROR in joining thread %d ",i);
         }
-        printf("Successfully joined thread %d \n",i);
+        // printf("Successfully joined thread %d \n",i);
     }
 
     int total_requests=0;

@@ -20,13 +20,13 @@ void error(char *msg)
 
 
 void *clean_up(){
-	printf("In clean up thread\n");
+	// printf("In clean up thread\n");
 	while(1){											//when no child process wait() returns. So,
 		int status;
 	    while(1){
 	    	int m=waitpid(-1,&status,WNOHANG);
 	    	if(m==0||m==-1)break;
-	    	printf("Cleaned up child process : %d\n",m);	    	
+	    	// printf("Cleaned up child process : %d\n",m);	    	
 	    }
 	sleep(5);
 	}
@@ -110,7 +110,7 @@ int main(int argc, char *argv[])
 		// 	}
 		// }
 		if(!pid){
-			 printf("In child process\n");
+			 // printf("In child process\n");
 			 if(close(sockfd) < 0);    //couldn't close listen socket in child
 		     /* read message from client */
 
@@ -122,19 +122,19 @@ int main(int argc, char *argv[])
 		     	exit(1);
 		     } 
 
-		     printf("Here is the message: %s\n",buffer);
+		     // printf("Here is the message: %s\n",buffer);
 
 		     char filename[256];
 		     memcpy(filename,&buffer[4],strlen(buffer)-4);
 		     filename[strlen(buffer)-4]='\0';
-		     printf("Filename : %s Filename Size : %d\n",filename,strlen(filename));
+		     // printf("Filename : %s Filename Size : %d\n",filename,strlen(filename));
 		     int fd = open(filename,O_RDONLY);
 		     if (fd < 0) {
 		     	error("ERROR opening the file");
 		     	close(client_sockfd);
 		     	exit(1);
 		     }
-		     printf("File opened to read\n");
+		     // printf("File opened to read\n");
 		     char read_buffer[1024];
 		     while(1){
 		     	n = read(fd,read_buffer,1023);
@@ -143,9 +143,9 @@ int main(int argc, char *argv[])
 		     		close(client_sockfd);
 		     		exit(1);     		
 		     	}
-		     	printf("Read %d Bytes from file\n",n);
+		     	// printf("Read %d Bytes from file\n",n);
 		     	if(n == 0){
-		     		printf("End of File reached\n");
+		     		// printf("End of File readeached\n");
 		     		close(fd);
 		     		break;
 		     	}
@@ -155,14 +155,14 @@ int main(int argc, char *argv[])
 		     		close(client_sockfd);
 		     		exit(1);
 		     	}
-		     	printf("Wrote %d Bytes to socket\n",n);
+		     	// printf("Wrote %d Bytes to socket\n",n);
 		     }
 
 		    close(client_sockfd);		//close client_sockfd in child
-		    printf("Closed client_socket in child\n");
+		    // printf("Closed client_socket in child\n");
 		 	exit(0); 					//successfully sent file
 	 	}
-		printf("Closed client_socket in parent\n");	 	
+		// printf("Closed client_socket in parent\n");	 	
 	 	close(client_sockfd);		//close client_sockfd in parent
 
      }
