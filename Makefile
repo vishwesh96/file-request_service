@@ -1,7 +1,5 @@
 all: compile
 
 compile:
-	@gcc -pthread -o server server.c
-	@gcc -pthread -o client client.c
-	@mv server ../../server	
-	@mv client ../../client	
+	@gcc -pthread -o server-mp server-mp.c
+	@gcc -pthread -o multi-client multi-client.c

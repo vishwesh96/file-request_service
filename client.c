@@ -6,27 +6,28 @@
 #include <stdlib.h>
 #include <string.h>
 
-struct arguments{
+/* structure to pass arguments to the function in pthread*/
+struct arguments{                               
     int port_no;
     int think_time;
     int duration;
     char mode[7];
     char hostname[16];
-    int *thread_num_requests;		//can be global
+    int *thread_num_requests;		
     double *thread_response_times;
-    int thread_id;
-    struct timeval start_time;
+    int thread_id;                          //id of the client
+    struct timeval start_time;              //the start time of the experiment
 };
-void error(char *msg)
+void error(char *msg)                       
 {
     perror(msg);
     exit(0);
 }
-
-void *client(void* s){
+/* Function to execute in the thread*/
+void *client(void* s){              
     
-    struct arguments* t =(struct arguments*)s;          //void* copy
-    int thread_id = t->thread_id;
+    struct arguments* t =(struct arguments*)s;                
+    int thread_id = t->thread_id;                                        //store the thread id and start time locally
     struct timeval start_time = t->start_time;
 
     int sockfd, n;
@@ -34,20 +35,18 @@ void *client(void* s){
     struct sockaddr_in serv_addr;
     struct hostent *server;
     int r=0;
-    if(!strcmp(t->mode,"fixed")){
+    if(!strcmp(t->mode,"fixed")){                                        //select a file in fixed mode
         r=rand()%10000;
     }
-    /* create socket, get sockfd handle */
-    struct timeval current_time;
+    struct timeval current_time;            
     while(1){
-        gettimeofday(&current_time,NULL);
-        //check time duration
-        if(current_time.tv_sec > start_time.tv_sec + t->duration){
+        gettimeofday(&current_time,NULL);                                
+        if(current_time.tv_sec > start_time.tv_sec + t->duration){       // exit if the duration is up
             // printf("Time up, terminating thread %d\n",thread_id);
-            t->thread_response_times[thread_id]=response_time;
+            t->thread_response_times[thread_id]=response_time;           // store the response time of the thread before exiting
             pthread_exit();
         }
-        
+        /* create socket, get sockfd handle */
         sockfd = socket(AF_INET, SOCK_STREAM, 0);
         if (sockfd < 0){
             error("ERROR opening socket");
@@ -78,7 +77,7 @@ void *client(void* s){
         // printf("Connected to server in thread %d\n",thread_id);
 
         /* send user message to server */
-        if(!strcmp(t->mode,"random")){
+        if(!strcmp(t->mode,"random")){                                  //generate random files at each request
             r=rand()%10000;
         }
 
@@ -91,13 +90,13 @@ void *client(void* s){
 
         // printf("Writing : %s to socket in thread %d\n",buffer,thread_id);
 
-        n = write(sockfd,buffer,strlen(buffer));
+        n = write(sockfd,buffer,strlen(buffer));                //write the request message to server
         if (n < 0) {
             error("ERROR writing to socket");
             close(sockfd);
             continue;                   // ignoring think_time
         }
-        struct timeval t1,t2;
+        struct timeval t1,t2;           // time variables to store the start and end time of each request
         gettimeofday(&t1,NULL);
         char read_buffer[1024];
         /* read reply from server */
@@ -108,14 +107,14 @@ void *client(void* s){
                  error("ERROR reading from socket");
                  break;
             }
-            if(n==0){
+            if(n==0){                           
                 // printf("File read completely in thread : %d\n",thread_id);
                 gettimeofday(&t2,NULL); 
-                response_time+=((t2.tv_sec-t1.tv_sec)*1000.0 + (t2.tv_usec-t1.tv_usec)/1000.0);
-                t->thread_num_requests[thread_id]++;
+                response_time+=((t2.tv_sec-t1.tv_sec)*1000.0 + (t2.tv_usec-t1.tv_usec)/1000.0);       //update the response time
+                t->thread_num_requests[thread_id]++;                                                  //update the number of request served
                 break;
             }
-            // printf("%s\n",read_buffer);   
+            // printf("%s\n",read_buffer);                          
         }
         close(sockfd);
         // printf("Waiting for think_time in thread : %d\n",thread_id);
@@ -126,55 +125,52 @@ void *client(void* s){
 
 int main(int argc, char *argv[])
 {
-    if (argc < 7) {
+    if (argc < 7) {                     //check if user aruguments are correct
        fprintf(stderr,"usage %s hostname port number_users duration think_time mode ", argv[0]);
        exit(0);
     }
 
     int num_threads=atoi(argv[3]);
 
-    struct arguments t;
-    t.port_no = atoi(argv[2]);
+    struct arguments t;                 //structure instance to pass the arguments to the thread
+    t.port_no = atoi(argv[2]);          
     strcpy(t.hostname,argv[1]);
     t.duration = atoi(argv[4]);
     t.think_time = atoi(argv[5]);
     strcpy(t.mode, argv[6]);
 
-    // int *thread_num_requests = new int[num_threads];
-    // double *thread_response_times = new double[num_threads];
-    int *thread_num_requests = malloc(sizeof(int)*num_threads);
-    double  *thread_response_times = malloc(sizeof(double)*num_threads);
+    int *thread_num_requests = malloc(sizeof(int)*num_threads);               //array to store the number of requests of each client 
+    double  *thread_response_times = malloc(sizeof(double)*num_threads);      //array to store the total response time of the server serving this client  
 
     t.thread_num_requests = thread_num_requests;
     t.thread_response_times = thread_response_times;
 
-    // pthread_t * client_thread = new pthread_t[num_threads];
-    pthread_t *client_thread = malloc(sizeof(pthread_t)*num_threads);
+    pthread_t *client_thread = malloc(sizeof(pthread_t)*num_threads);        //create array of client threads
     int i=0;
     for(i=0;i<num_threads;i++){
         t.thread_id=i;
-        gettimeofday(&t.start_time,NULL);                       //each thread runs for duration
-        if(pthread_create(&client_thread[i],NULL,client,&t)){
+        gettimeofday(&t.start_time,NULL);                                       //start time of the thread
+        if(pthread_create(&client_thread[i],NULL,client,&t)){                   //create all the client threads
             // printf("ERROR in creating thread %d \n",i);
         }
         // printf("Successfully created thread %d \n",i);
     }
     for(i=0;i<num_threads;i++){
-        if(pthread_join(client_thread[i],NULL)){
+        if(pthread_join(client_thread[i],NULL)){                                //join all the threads after their exit
             printf("ERROR in joining thread %d ",i);
         }
         // printf("Successfully joined thread %d \n",i);
     }
 
-    int total_requests=0;
+    int total_requests=0;                                           
     double total_response_time=0.0;
-    for(i=0;i<num_threads;i++){
-        total_requests+=thread_num_requests[i];
+    for(i=0;i<num_threads;i++){                                                 //calculate the sum total requests of all the threads
+        total_requests+=thread_num_requests[i];                                 //calculate the total response times of all the threads
         total_response_time+=thread_response_times[i];
     }
 
-    printf("Throughuput(req/s) : %f\nAverage Response Time(in ms) : %f \n",((double)total_requests)/t.duration,total_response_time/total_requests);
-    free(thread_num_requests);
+    printf("Throughuput(req/s) : %f\nAverage Response Time(in ms) : %f \n",((double)total_requests)/t.duration,total_response_time/total_requests); 
+    free(thread_num_requests);                      //free the memory allocated for the arrays
     free(thread_response_times);
     free(client_thread);
     return 0;
