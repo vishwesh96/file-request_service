@@ -39,6 +39,8 @@ void *client(void* s){
         r=rand()%10000;
     }
     struct timeval current_time;            
+
+    /*send requests to the server */
     while(1){
         gettimeofday(&current_time,NULL);                                
         if(current_time.tv_sec > start_time.tv_sec + t->duration){       // exit if the duration is up

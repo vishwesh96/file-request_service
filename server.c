@@ -18,14 +18,16 @@ void error(char *msg)
     exit(1);
 }
 
-
+/*Funtion to reap terminated child processes*/	
 void *clean_up(){
 	// printf("In clean up thread\n");
-	while(1){											//when no child process wait() returns. So,
+	/*check for terminated child processes every 5 sec */
+	while(1){											
 		int status;
+		/* reap all the terminated child processes at this point*/
 	    while(1){
 	    	int m=waitpid(-1,&status,WNOHANG);
-	    	if(m==0||m==-1)break;
+	    	if(m==0||m==-1)break;								//break when no more child processes are there
 	    	// printf("Cleaned up child process : %d\n",m);	    	
 	    }
 	sleep(5);
@@ -38,7 +40,7 @@ int main(int argc, char *argv[])
      char buffer[256];
      struct sockaddr_in serv_addr, cli_addr;
      int n;
-     if (argc < 2) {
+     if (argc < 2) {								 //check if user aruguments are correct
          fprintf(stderr,"ERROR, no port provided\n");
          exit(1);
      }
@@ -69,14 +71,17 @@ int main(int argc, char *argv[])
      
      /* listen for incoming connection requests */
 
-     listen(sockfd,1000);
+     listen(sockfd,30);
      clilen = sizeof(cli_addr);
 
+     /* create a clean up thread to reap terminated zombie processes*/
      pthread_t clean_up_thread;
 	pthread_create(&clean_up_thread, NULL, clean_up, NULL);
 
 
  	 // int start=1;
+
+	/*serve clients continuously*/
      while(1){
 
 	     /* accept a new request, create a new sockfd */
@@ -86,34 +91,19 @@ int main(int argc, char *argv[])
 	     	continue;
 	     }
 
-
+	    /*fork a new child process to handle each request by a client*/
 		int pid=fork();
 		if(pid < 0){
 			error("ERROR forking, Client Couldn't be served");
 			exit(1);										//exit(1)s are required so that the child shouldn't start accepting connections and forking
 		}
-		// if(pid){
-		// 	if(start){
-		// 		pthread_create(&clean_up_thread, NULL, clean_up, NULL);
-		// 		start=0;
-		// 	}
-		// 	else{
-		// 		if(pthread_cancel(clean_up_thread)){
-		// 			error("Couldn't cancel clean_up_thread");
-		// 		}
-		// 		else{
-		// 			if(pthread_create(&clean_up_thread, NULL, clean_up, NULL)){
-		// 				error("Couldn't create clean_up_thread");
-		// 				start = 1;
-		// 			}
-		// 		}
-		// 	}
-		// }
+
+		/*Handle the request in the child process */
 		if(!pid){
 			 // printf("In child process\n");
-			 if(close(sockfd) < 0);    //couldn't close listen socket in child
-		     /* read message from client */
+			 if(close(sockfd) < 0);    						//couldn't close listen socket in child
 
+		     /* read request message from client */
 		     bzero(buffer,256);
 		     n = read(client_sockfd,buffer,255);
 		     if (n < 0) {
@@ -124,10 +114,13 @@ int main(int argc, char *argv[])
 
 		     // printf("Here is the message: %s\n",buffer);
 
+		     /* Retrieve the file name from the request message*/
 		     char filename[256];
 		     memcpy(filename,&buffer[4],strlen(buffer)-4);
 		     filename[strlen(buffer)-4]='\0';
 		     // printf("Filename : %s Filename Size : %d\n",filename,strlen(filename));
+
+		     /*open the file to read*/
 		     int fd = open(filename,O_RDONLY);
 		     if (fd < 0) {
 		     	error("ERROR opening the file");
@@ -136,6 +129,8 @@ int main(int argc, char *argv[])
 		     }
 		     // printf("File opened to read\n");
 		     char read_buffer[1024];
+		     
+		     /*read the file and send it to the client */
 		     while(1){
 		     	n = read(fd,read_buffer,1023);
 		     	if(n < 0) {
