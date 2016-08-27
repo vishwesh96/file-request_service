@@ -44,9 +44,9 @@ void *downloader(void* ){
 		pthread_mutex_lock(&lock);
 
 		while(file_request_queue.empty()){
-			cout<<"Request queue empty...Waiting"<<endl;
+			// cout<<"Request queue empty...Waiting"<<endl;
 			pthread_cond_wait(&worker_sleep, &lock);
-			cout<<"woke up --thread"<<endl;
+			// cout<<"woke up --thread"<<endl;
 		}
 
 		struct request r = file_request_queue.front();
@@ -54,7 +54,7 @@ void *downloader(void* ){
 
 		if(file_request_queue.size() == max_queue_size){
 			file_request_queue.pop();
-			cout<<"space created in request queue...Wake up server"<<endl;
+			// cout<<"space created in request queue...Wake up server"<<endl;
 			pthread_cond_signal(&server_sleep);
 		}
 		else{
@@ -144,7 +144,7 @@ int main(int argc, char *argv[])
     clilen = sizeof(cli_addr);
     int worker_threads_count = atoi(argv[2]);
     max_queue_size = atoi(argv[3]);
-    
+
     vector<pthread_t>worker_threads;
     worker_threads.resize(worker_threads_count);
 
@@ -175,10 +175,10 @@ int main(int argc, char *argv[])
 	     /* accept a new request, create a new sockfd */
      	pthread_mutex_lock(&lock);
      	
-     	while(file_request_queue.size() > max_queue_size){
-     		cout<<"No space in queue...gonna sleep --server"<<endl;
+     	while(file_request_queue.size() > max_queue_size && max_queue_size!=0){
+     		// cout<<"No space in queue...gonna sleep --server"<<endl;
      		pthread_cond_wait(&server_sleep, &lock);
-     		cout<<"signal received from worker (space created)"<<endl;
+     		// cout<<"signal received from worker (space created)"<<endl;
      	}
 
      	pthread_mutex_unlock(&lock);
@@ -216,7 +216,7 @@ int main(int argc, char *argv[])
 	    	//release lock
 	    	pthread_mutex_unlock(&lock);
 	    	//signal
-	    	cout<<"signal to workers...request arrived"<<endl;
+	    	// cout<<"signal to workers...request arrived"<<endl;
 	    	pthread_cond_broadcast(&worker_sleep);
 	    }
 
