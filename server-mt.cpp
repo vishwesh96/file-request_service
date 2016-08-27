@@ -9,6 +9,10 @@
 #include <pthread.h>
 #include <sys/wait.h>
 #include <stdlib.h>
+#include <cstdlib>
+#include <pthread.h>
+#include <unistd.h>
+
 
 
 
@@ -19,7 +23,7 @@ void error(char *msg)
 }
 
 /*Funtion to reap terminated child processes*/	
-void *clean_up(){
+void *clean_up(void *){
 	// printf("In clean up thread\n");
 	/*check for terminated child processes every 5 sec */
 	while(1){											
@@ -85,7 +89,7 @@ int main(int argc, char *argv[])
      while(1){
 
 	     /* accept a new request, create a new sockfd */
-	     client_sockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen);
+	     client_sockfd = accept(sockfd, (struct sockaddr *) &cli_addr, (socklen_t *)&clilen);
 	     if (client_sockfd < 0){
 	     	error("ERROR on accept,  Client Couldn't be served");
 	     	continue;

@@ -1,10 +1,14 @@
 #include <stdio.h>
 #include <sys/types.h>
+#include <sys/time.h>
+#include <pthread.h>
+#include <unistd.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h> 
 #include <stdlib.h>
 #include <string.h>
+#include <cstdlib>
 
 /* structure to pass arguments to the function in pthread*/
 struct arguments{                               
@@ -46,7 +50,7 @@ void *client(void* s){
         if(current_time.tv_sec > start_time.tv_sec + t->duration){       // exit if the duration is up
             // printf("Time up, terminating thread %d\n",thread_id);
             t->thread_response_times[thread_id]=response_time;           // store the response time of the thread before exiting
-            pthread_exit();
+            pthread_exit(0);
         }
         /* create socket, get sockfd handle */
         sockfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -141,13 +145,13 @@ int main(int argc, char *argv[])
     t.think_time = atoi(argv[5]);
     strcpy(t.mode, argv[6]);
 
-    int *thread_num_requests = malloc(sizeof(int)*num_threads);               //array to store the number of requests of each client 
-    double  *thread_response_times = malloc(sizeof(double)*num_threads);      //array to store the total response time of the server serving this client  
+    int *thread_num_requests = (int *)malloc(sizeof(int)*num_threads);               //array to store the number of requests of each client 
+    double  *thread_response_times = (double *)malloc(sizeof(double)*num_threads);      //array to store the total response time of the server serving this client  
 
     t.thread_num_requests = thread_num_requests;
     t.thread_response_times = thread_response_times;
 
-    pthread_t *client_thread = malloc(sizeof(pthread_t)*num_threads);        //create array of client threads
+    pthread_t *client_thread = (pthread_t *)malloc(sizeof(pthread_t)*num_threads);        //create array of client threads
     int i=0;
     for(i=0;i<num_threads;i++){
         t.thread_id=i;

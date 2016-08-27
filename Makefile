@@ -1,5 +1,5 @@
 all: compile
 
 compile:
-	@gcc -pthread -o server-mp server-mp.c
-	@gcc -pthread -o multi-client multi-client.c
+	@g++ -w -pthread -o server-mt server-mt.cpp
+	@g++ -w -pthread -o multi-client multi-client.cpp
