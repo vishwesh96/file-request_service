@@ -12,8 +12,10 @@
 #include <cstdlib>
 #include <pthread.h>
 #include <unistd.h>
+#include <queue>
+#include <string>
 
-
+using namespace std;
 
 
 void error(char *msg)
@@ -22,21 +24,80 @@ void error(char *msg)
     exit(1);
 }
 
-/*Funtion to reap terminated child processes*/	
-void *clean_up(void *){
-	// printf("In clean up thread\n");
-	/*check for terminated child processes every 5 sec */
-	while(1){											
-		int status;
-		/* reap all the terminated child processes at this point*/
-	    while(1){
-	    	int m=waitpid(-1,&status,WNOHANG);
-	    	if(m==0||m==-1)break;								//break when no more child processes are there
-	    	// printf("Cleaned up child process : %d\n",m);	    	
-	    }
-	sleep(5);
+struct request{
+	string filename;
+	int client_sockfd;
+};
+
+queue<struct request>file_request_queue;
+int max_queue_size;
+
+pthread_cond_t server_sleep;
+pthread_cond_t worker_sleep;
+pthread_mutex_t lock;
+
+void *downloader(void* ){
+	while(1){
+		
+		// acquire lock
+		pthread_mutex_lock(&lock);
+
+		while(file_request_queue.empty()){
+			pthread_cond_wait(&worker_sleep, &lock);
+		}
+
+		struct request r = file_request_queue.front();
+		
+
+		if(file_request_queue.size() == max_queue_size){
+			file_request_queue.pop();
+			pthread_cond_signal(&worker_sleep);
+		}
+		else{
+			file_request_queue.pop();
+		}
+
+
+		pthread_mutex_unlock(&lock);	//release lock
+		// lock released
+
+		/*open the file to read*/
+		int fd = open(r.filename.c_str(),O_RDONLY);
+		if (fd < 0) {
+			error("ERROR opening the file");
+			close(r.client_sockfd);
+			exit(1);
+		}
+		 // printf("File opened to read\n");
+		char read_buffer[1024];
+		 
+		 /*read the file and send it to the client */
+		while(1){
+		 	int n = read(fd,read_buffer,1023);
+		 	if(n < 0) {
+		 		error("ERROR reading from file"); 	
+		 		close(r.client_sockfd);
+		 		exit(1);     		
+		 	}
+		 	// printf("Read %d Bytes from file\n",n);
+		 	if(n == 0){
+		 		// printf("End of File readeached\n");
+		 		close(fd);
+		 		break;
+		 	}
+		 	n = write(r.client_sockfd,read_buffer,1023);
+		 	if (n < 0) {
+		 		error("ERROR writing to socket");
+		 		close(r.client_sockfd);
+		 		exit(1);
+		 	}
+		}
+
+		close(r.client_sockfd);		//close client_sockfd in child
 	}
 }
+
+
 
 int main(int argc, char *argv[])
 {
@@ -44,8 +105,8 @@ int main(int argc, char *argv[])
      char buffer[256];
      struct sockaddr_in serv_addr, cli_addr;
      int n;
-     if (argc < 2) {								 //check if user aruguments are correct
-         fprintf(stderr,"ERROR, no port provided\n");
+     if (argc != 4) {								 //check if user aruguments are correct
+         fprintf(stderr,"Error!! Please provide portno number_of_worker_threads server_queue_length \n");
          exit(1);
      }
 
@@ -75,94 +136,88 @@ int main(int argc, char *argv[])
      
      /* listen for incoming connection requests */
 
-     listen(sockfd,30);
-     clilen = sizeof(cli_addr);
+    listen(sockfd,30);
+    clilen = sizeof(cli_addr);
+    int worker_threads_count = atoi(argv[2]);
+    max_queue_size = atoi(argv[3]);
+    
+    vector<pthread_t>worker_threads;
+    worker_threads.resize(worker_threads_count);
 
-     /* create a clean up thread to reap terminated zombie processes*/
-     pthread_t clean_up_thread;
-	pthread_create(&clean_up_thread, NULL, clean_up, NULL);
+    for(int i=0 ; i<worker_threads_count ; i++){
+    	pthread_create(&worker_threads[i],NULL,downloader,NULL);
+    }
+    
+    // Initialise
+    if (pthread_mutex_init(&lock, NULL) != 0)
+    {
+        printf("\n mutex init failed\n");
+        return 1;
+    }
 
+	if(pthread_cond_init(&server_sleep, NULL) != 0){
+        printf("\n conditional variable init failed\n");
+        return 1;
+	}
 
- 	 // int start=1;
+	if(pthread_cond_init(&worker_sleep, NULL) != 0){
+        printf("\n conditional variable init failed\n");
+        return 1;
+	}
 
 	/*serve clients continuously*/
      while(1){
 
 	     /* accept a new request, create a new sockfd */
-	     client_sockfd = accept(sockfd, (struct sockaddr *) &cli_addr, (socklen_t *)&clilen);
-	     if (client_sockfd < 0){
-	     	error("ERROR on accept,  Client Couldn't be served");
-	     	continue;
-	     }
+     	pthread_mutex_lock(&lock);
+     	
+     	while(file_request_queue.size() > max_queue_size){
+     		pthread_cond_wait(&server_sleep, &lock);
+     	}
 
-	    /*fork a new child process to handle each request by a client*/
-		int pid=fork();
-		if(pid < 0){
-			error("ERROR forking, Client Couldn't be served");
-			exit(1);										//exit(1)s are required so that the child shouldn't start accepting connections and forking
-		}
+     	pthread_mutex_unlock(&lock);
 
-		/*Handle the request in the child process */
-		if(!pid){
-			 // printf("In child process\n");
-			 if(close(sockfd) < 0);    						//couldn't close listen socket in child
+     	// Request Connection
+	    client_sockfd = accept(sockfd, (struct sockaddr *) &cli_addr, (socklen_t *)&clilen);
+	    if (client_sockfd < 0){
+	    	error("ERROR on accept,  Client Couldn't be served");
+	    	continue;
+	    }
 
-		     /* read request message from client */
-		     bzero(buffer,256);
-		     n = read(client_sockfd,buffer,255);
-		     if (n < 0) {
-		     	error("ERROR reading from socket");
-		     	close(client_sockfd);
-		     	exit(1);
-		     } 
+	    // Read the request message
+	    bzero(buffer,256);
+	    n = read(client_sockfd,buffer,255);
+	    if (n < 0) {
+	   		error("ERROR reading from socket");
+	     	close(client_sockfd);
+	     	exit(1);
+	    } 
 
-		     // printf("Here is the message: %s\n",buffer);
+	    char filename[256];
+	    memcpy(filename,&buffer[4],strlen(buffer)-4);
+	    filename[strlen(buffer)-4]='\0';
 
-		     /* Retrieve the file name from the request message*/
-		     char filename[256];
-		     memcpy(filename,&buffer[4],strlen(buffer)-4);
-		     filename[strlen(buffer)-4]='\0';
-		     // printf("Filename : %s Filename Size : %d\n",filename,strlen(filename));
+	    struct request r;
+	    r.filename = (string)filename;
+	    r.client_sockfd = client_sockfd;
 
-		     /*open the file to read*/
-		     int fd = open(filename,O_RDONLY);
-		     if (fd < 0) {
-		     	error("ERROR opening the file");
-		     	close(client_sockfd);
-		     	exit(1);
-		     }
-		     // printf("File opened to read\n");
-		     char read_buffer[1024];
-		     
-		     /*read the file and send it to the client */
-		     while(1){
-		     	n = read(fd,read_buffer,1023);
-		     	if(n < 0) {
-		     		error("ERROR reading from file"); 	
-		     		close(client_sockfd);
-		     		exit(1);     		
-		     	}
-		     	// printf("Read %d Bytes from file\n",n);
-		     	if(n == 0){
-		     		// printf("End of File readeached\n");
-		     		close(fd);
-		     		break;
-		     	}
-		     	n = write(client_sockfd,read_buffer,1023);
-		     	if (n < 0) {
-		     		error("ERROR writing to socket");
-		     		close(client_sockfd);
-		     		exit(1);
-		     	}
-		     	// printf("Wrote %d Bytes to socket\n",n);
-		     }
+	    // Push file into the request queue and wake up worker thread if necessary
+	    //acquire lock
+	    pthread_mutex_lock(&lock);
 
-		    close(client_sockfd);		//close client_sockfd in child
-		    // printf("Closed client_socket in child\n");
-		 	exit(0); 					//successfully sent file
-	 	}
-		// printf("Closed client_socket in parent\n");	 	
-	 	close(client_sockfd);		//close client_sockfd in parent
+	    if(file_request_queue.empty()){
+	    	file_request_queue.push(r);
+	    	//release lock
+	    	pthread_mutex_unlock(&lock);
+	    	//signal
+	    	pthread_cond_broadcast(&worker_sleep);
+	    }
+
+	    else{
+	    	file_request_queue.push(r);
+	    	//release lock
+	    	pthread_mutex_unlock(&lock);
+	    }
 
      }
      return 0; 
