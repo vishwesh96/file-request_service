@@ -93,11 +93,12 @@ void *downloader(void* ){
 		 	if (n < 0) {
 		 		error("ERROR writing to socket");
 		 		close(r.client_sockfd);
+		 		close(fd);
 		 		exit(1);
 		 	}
 		}
 
-		close(r.client_sockfd);		//close client_sockfd in child
+		close(r.client_sockfd);		//close client_sockfd in thread
 	}
 }
 
@@ -213,8 +214,6 @@ int main(int argc, char *argv[])
 
 	    if(file_request_queue.empty()){
 	    	file_request_queue.push(r);
-	    	//release lock
-	    	pthread_mutex_unlock(&lock);
 	    	//signal
 	    	// cout<<"signal to workers...request arrived"<<endl;
 	    	pthread_cond_broadcast(&worker_sleep);
@@ -222,9 +221,10 @@ int main(int argc, char *argv[])
 
 	    else{
 	    	file_request_queue.push(r);
-	    	//release lock
-	    	pthread_mutex_unlock(&lock);
 	    }
+	    //release lock
+		pthread_mutex_unlock(&lock);
+
 
      }
      return 0; 

@@ -138,26 +138,29 @@ int main(int argc, char *argv[])
 
     int num_threads=atoi(argv[3]);
 
-    struct arguments t;                 //structure instance to pass the arguments to the thread
-    t.port_no = atoi(argv[2]);          
-    strcpy(t.hostname,argv[1]);
-    t.duration = atoi(argv[4]);
-    t.think_time = atoi(argv[5]);
-    strcpy(t.mode, argv[6]);
-
     int *thread_num_requests = (int *)malloc(sizeof(int)*num_threads);               //array to store the number of requests of each client 
     double  *thread_response_times = (double *)malloc(sizeof(double)*num_threads);      //array to store the total response time of the server serving this client  
 
-    t.thread_num_requests = thread_num_requests;
-    t.thread_response_times = thread_response_times;
+    struct arguments * t = (struct arguments *)malloc(sizeof(struct arguments )*num_threads);                 //structure instance to pass the arguments to the thread
+    
+    int i=0;
+    for(;i<num_threads;i++){
+	    t[i].port_no = atoi(argv[2]);          
+	    strcpy(t[i].hostname,argv[1]);
+	    t[i].duration = atoi(argv[4]);
+	    t[i].think_time = atoi(argv[5]);
+	    strcpy(t[i].mode, argv[6]);
+	    t[i].thread_num_requests = thread_num_requests;
+	    t[i].thread_response_times = thread_response_times;
+	}
 
     pthread_t *client_thread = (pthread_t *)malloc(sizeof(pthread_t)*num_threads);        //create array of client threads
-    int i=0;
+    i=0;
     for(i=0;i<num_threads;i++){
-        t.thread_id=i;
-        gettimeofday(&t.start_time,NULL);                                       //start time of the thread
-        if(pthread_create(&client_thread[i],NULL,client,&t)){                   //create all the client threads
-            // printf("ERROR in creating thread %d \n",i);
+        t[i].thread_id=i;
+        gettimeofday(&t[i].start_time,NULL);                                       //start time of the thread
+        if(pthread_create(&client_thread[i],NULL,client,&t[i])){                   //create all the client threads
+            printf("ERROR in creating thread %d \n",i);
         }
         // printf("Successfully created thread %d \n",i);
     }
